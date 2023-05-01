@@ -95,7 +95,7 @@ cds_extre_indic<-function(var_cat, var, period, cds_user, cds_key, target_path, 
     
   } else if(var_cat == "HSI") {
     product_type =  'bias_adjusted'
-    temporal_aggregation = "daily"
+    temporal_aggregation = "yearly"
     #period = c('19510101-20101231', '20110101-21001231')
   }
   
@@ -125,14 +125,19 @@ cds_api_dl(cds_user,cds_key, target_path, req_list)
 }
 
 #data params:
-var <-c("maximum_5_day_precipitation","maximum_1_day_precipitation")
+var <-c('consecutive_dry_days', 'consecutive_wet_days', 'diurnal_temperature_range','frost_days',
+        'growing_season_length', 'heavy_precipitation_days', 'ice_days', 'maximum_1_day_precipitation',
+        'maximum_5_day_precipitation','maximum_value_of_daily_maximum_temperature', 'maximum_value_of_daily_minimum_temperature', 
+        'minimum_value_of_daily_maximum_temperature', 'minimum_value_of_daily_minimum_temperature', 'number_of_wet_days',
+        'simple_daily_intensity_index','summer_days', 'total_wet_day_precipitation', 'tropical_nights','very_heavy_precipitation_days')
 fil_desc<-"extr_indices"
 var_cat <- "ETCCDI"
 period = c('1850-2014', '2015-2100') #ETCCDI 1850-2014', '2015-2100',
-period = c('19510101-20101231', '20110101-21001231') #HSI
+#period = c('19510101-20101231', '20110101-21001231') #HSI
 
 #RUN function:
 cds_extre_indic(var_cat,var,period, user, key, target_path, fil_desc)
+
 
 
 
