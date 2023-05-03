@@ -169,7 +169,7 @@ GetAirPollution<-function(ADM,ISO,ext){
 
 #Coral Bleaching database - SQLite
 #https://www.nature.com/articles/s41597-022-01121-y#Sec4
-GeCoralBleaching<-function(ADM,ISO,ext){
+GetCoralBleaching<-function(ADM,ISO,ext){
   library(RSQLite)
   filename <- paste0(dir,"/Data/Hazard/ENVIRONMENTAL/CoralBleaching/Global_Coral_Bleaching_Database_SQLite_11_24_21.db")
   sqlite.driver <- dbDriver("SQLite")
@@ -351,11 +351,67 @@ GetBurnedAreas<-function(ISO,ADM,ext){
     filter(GID_0 == ISO)%>%
     filter(Year ==max(fil$Year))
   
+  Yr<-max(fil$Year)
   #select only those in same ADM:
   burnedADM<-fil%>%
     filter(Region == ADM$ADM2NM)%>%
-    group_by(Region)%>%
-    summarize()
+    group_by(GID_0,GID_1,Country,Region)%>%
+    summarise(across(-Month, mean, na.rm = TRUE))
   
+  colnames(burnedADM)<-paste0("BurnedAreaHa_",colnames(burnedADM),"_",Yr)
   
+  ADM<-cbind(ADM,burnedADM[,-c(1:5)])
+  
+  return(ADM)
+}
+
+
+
+#----------------
+#4. CHEMICAL
+#--------------
+
+
+#Atmoshperic gases/Chemical gases - Carbon Monoxide mol/cm2
+#MOPITT - https://asdc.larc.nasa.gov/project/MOPITT
+#Data from MOP03JM_9 is the Measurements Of Pollution In The Troposphere (MOPITT) 
+#Carbon Monoxide (CO) gridded monthly means (Near and Thermal Infrared Radiances) version 9 data product.
+#extract data via opendap links
+
+GetMOPITT<-function(ISO,ADM,ext, MostRecentFile=T){ #add part to specify a date later!
+  lnk<-"https://opendap.larc.nasa.gov/opendap/MOPITT/MOP03JM.009/"
+  if(mostRecentFile==T){
+    maxYMD <-lnk%>%
+    getURL(.,verbose=TRUE,ftp.use.epsv=TRUE, dirlistonly = TRUE) %>%
+    getHTMLLinks(.,xpQuery = "//a/@href[contains(., '.01')]") %>%
+    as.Date(substr(.,1,10),format = "%Y.%m.%d") %>%
+    max()%>%
+    format(., "%Y.%m.%d")
+  maxYM<-maxYMD%>%
+    sub("\\.", "", .)%>%
+    substr(.,1,6)
+  lnkDL<-paste0(lnk,maxYMD,"/MOP03JM-",maxYM,"-",ver)
+  }
+  # create a temporary directory
+  td = tempdir()
+  # create the placeholder file
+  tf = tempfile(tmpdir=td, fileext="he5")
+  # download into the placeholder file
+  download.file(lnkDL, tf)
+  # Open Data field as raster - field to get is known:
+  r <- raster(tf,
+              var="HDFEOS/GRIDS/MOP03/Data Fields/RetrievedCOTotalColumnDay",ncdf=TRUE)%>%
+    flip(., "x")%>% #some rotation since orig. file is flipped. Mayb because of the order of variables in the netcdf dimension
+    flip(.,"y")%>%
+    t(.)
+  
+  #select only those in same ADM:
+  x<-r%>%
+    crop(ext)%>%
+    terra::extract(ADM,method='bilinear',na.rm=T,fun=mean,ID=FALSE)%>%
+    unlist() %>%
+    ifelse(is.nan(.) ==TRUE,NA,.)  #NaN to Na
+  ADM$x<-x
+  names(ADM)[names(ADM) == "x"] <- paste0("MOPITT_CO_",maxYM)
+  return(ADM)
 }

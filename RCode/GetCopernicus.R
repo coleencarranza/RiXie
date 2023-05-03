@@ -24,7 +24,7 @@ cds_api_dl <- function(cds_user,cds_key, target_path,req_list){
   }
 
 #user API download params:
-target_path <- "/media/coleen/DDrive/A_UNDRR_GRAF/Results/CDS"
+target_path <- "/home/coleen/Documents/GitHub/RiXie/Data/Other_Global_datasets/with_APIs/by_source/CDS/"
 user <- "161815" #coleen personal user ID #@RiX_climate! pass
 key <- "b631611e-7dc1-4453-a598-f7aaac7a095b"
 
