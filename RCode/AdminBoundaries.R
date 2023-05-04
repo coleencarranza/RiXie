@@ -168,50 +168,50 @@ filterADM<-function(ADM,iso=NULL,adlev=NULL){
 #   
 # }
 
-#---------------------------------------------------------------------
-#data manipulation + analysis on ADM shapefile
-#------------------------------------------------------------
-library(sf)
-library(dplyr)
-
-#list of countries from shapefile:
-adm <-st_read("./Data/Spatial/ADM_Full.shp", quiet = TRUE) %>%
-  st_drop_geometry()
-
-#shapefile
-adm<- adm %>%
-  st_drop_geometry() %>%
-  mutate_all(function(x) ifelse(is.nan(x), NA, x))
-
-#get country stats, row statistics, total for pop, mean for others
-pop <- c("POPULAT", "FemalPp","Undr14P","Ovr64Pp")
-adm_group <- adm %>%
-  group_by(ISO3CD) %>%
-  dplyr::select(where(is.numeric)) %>%
-  summarise(across(pop, sum), across(-pop, mean)) %>%
-  dplyr::select(where(~!all(is.na(.)))) %>%
-  mutate_all(function(x) ifelse(is.nan(x), NA, x)) %>%
-  rename_at(1,~"iso") 
-
-
-#Rank based on the current number of countries in the shapefile.......
-Adm_cRank <- function(data){
-  len <- nrow(data)
-  iso3 <- data$iso
-  data[data == 0]<-NA
-  ranks <- apply(data[,-1], 2, function(x) ntile(desc(x), len)) %>% #descending, so rank 1 is highest risk
-    data.frame(iso3, .)
-  rank_out_of <- apply(data[,-1], 2, function(x) sum(!is.na(x))) %>%
-    sapply(., function (x) rep(x,len)) %>%
-    data.frame(iso3, .)
-  rank_class <- apply(data[,-1], 2, function(x) as.integer(ntile(x, 5))) %>%
-    data.frame(iso3, .)
-  
-  list_all <-list(data, ranks, rank_out_of, rank_class)
-  names(list_all) <-c("Value","Rank", "Rank_out_of", "Rank_class")
-  
-  
-  return(list_all)
-}
-
-adm_ranks<-Adm_cRank(adm_group)
+# #---------------------------------------------------------------------
+# #data manipulation + analysis on ADM shapefile
+# #------------------------------------------------------------
+# library(sf)
+# library(dplyr)
+# 
+# #list of countries from shapefile:
+# adm <-st_read("./Data/Spatial/ADM_Full.shp", quiet = TRUE) %>%
+#   st_drop_geometry()
+# 
+# #shapefile
+# adm<- adm %>%
+#   st_drop_geometry() %>%
+#   mutate_all(function(x) ifelse(is.nan(x), NA, x))
+# 
+# #get country stats, row statistics, total for pop, mean for others
+# pop <- c("POPULAT", "FemalPp","Undr14P","Ovr64Pp")
+# adm_group <- adm %>%
+#   group_by(ISO3CD) %>%
+#   dplyr::select(where(is.numeric)) %>%
+#   summarise(across(pop, sum), across(-pop, mean)) %>%
+#   dplyr::select(where(~!all(is.na(.)))) %>%
+#   mutate_all(function(x) ifelse(is.nan(x), NA, x)) %>%
+#   rename_at(1,~"iso") 
+# 
+# 
+# #Rank based on the current number of countries in the shapefile.......
+# Adm_cRank <- function(data){
+#   len <- nrow(data)
+#   iso3 <- data$iso
+#   data[data == 0]<-NA
+#   ranks <- apply(data[,-1], 2, function(x) ntile(desc(x), len)) %>% #descending, so rank 1 is highest risk
+#     data.frame(iso3, .)
+#   rank_out_of <- apply(data[,-1], 2, function(x) sum(!is.na(x))) %>%
+#     sapply(., function (x) rep(x,len)) %>%
+#     data.frame(iso3, .)
+#   rank_class <- apply(data[,-1], 2, function(x) as.integer(ntile(x, 5))) %>%
+#     data.frame(iso3, .)
+#   
+#   list_all <-list(data, ranks, rank_out_of, rank_class)
+#   names(list_all) <-c("Value","Rank", "Rank_out_of", "Rank_class")
+#   
+#   
+#   return(list_all)
+# }
+# 
+# adm_ranks<-Adm_cRank(adm_group)

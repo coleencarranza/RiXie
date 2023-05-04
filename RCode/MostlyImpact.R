@@ -54,7 +54,7 @@ load("/home/coleen/Documents/GitHub/RiXie/Data/Impact_losses/Disaster_database/E
 
 ## otherwise rename the variable "Dis No" from EMDAT without removing any characters
 emdat <- disasterlist%>%
-  mutate(disasterno=`Dis_No`)
+  mutate(disasterno=`Dis No`)
 
 #Rename columns for easy export later:
 emdat_rename<-c("Dis_No","Year","Seq","Glide","Disaster_Group","Disaster_Subgroup","Disaster_Type","Disaster_Subtype","Disaster_Subsubtype","Event_Name","Country",
@@ -68,7 +68,7 @@ colnames(emdat)<-emdat_rename
 ## Remove geography to ease data operations
 disasterlocations <- GDIS_disasterlocations %>% 
   as_tibble() %>% 
-  select(-geometry) %>%
+  dplyr::select(-geometry) %>%
   as.data.frame()
 
 #Append ISO to disasterNo GDIS to match emdat:

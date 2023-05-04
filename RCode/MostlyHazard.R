@@ -176,9 +176,12 @@ GetCoralBleaching<-function(ADM,ISO,ext){
   db <- dbConnect(sqlite.driver,dbname = filename)
   ## Some operations
   #dbListTables(db)
-  site<-dbReadTable(db,"Site_Info_tbl") %>%    select(Site_ID,Latitude_Degrees,Longitude_Degrees)
-  samples<-dbReadTable(db,"Sample_Event_tbl")%>%    select(Sample_ID,Site_ID,Date_Day,Date_Month,Date_Year,Depth_m)
-  bleach_perc <- dbReadTable(db,"Bleaching_tbl")%>%    select(Sample_ID, Bleaching_ID,Percent_Bleached)
+  site<-dbReadTable(db,"Site_Info_tbl") %>%    
+    dplyr::select(Site_ID,Latitude_Degrees,Longitude_Degrees)
+  samples<-dbReadTable(db,"Sample_Event_tbl")%>%    
+    dplyr::select(Sample_ID,Site_ID,Date_Day,Date_Month,Date_Year,Depth_m)
+  bleach_perc <- dbReadTable(db,"Bleaching_tbl")%>%    
+    dplyr::select(Sample_ID, Bleaching_ID,Percent_Bleached)
   #Joining tables:
   site_samp<-dplyr::left_join(site,samples, by="Site_ID")
   site_samp_blea<-left_join(site_samp,bleach_perc,by="Sample_ID")
@@ -193,8 +196,9 @@ GetCoralBleaching<-function(ADM,ISO,ext){
       st_drop_geometry()%>%
       dplyr::summarize(Percent_Bleached = mean(Percent_Bleached, na.rm=TRUE))%>%
       mutate_all(function(x) ifelse(is.nan(x), NA, x))
+    x<-shore_in_adm$Percent_Bleached
     
-    ADM$x<-shore_in_adm$Percent_Bleached
+    ADM$x<-x
     } else{
       ADM$x<-NA
       }
@@ -211,22 +215,22 @@ GetCoralBleaching<-function(ADM,ISO,ext){
 #https://cidportal.jrc.ec.europa.eu/ftp/jrc-opendata/LISCOAST/globalShorelineChange/LATEST/globalCoastalMorphodynamicsDb.nc
 #https://climate-adapt.eea.europa.eu/en/metadata/tools/large-scale-integrated-sea-level-and-coastal-assessment-tool-liscoast
 
-GetShorelineChanges<--function(ADM,ISO,ext,RCP="RCPC45"){
+GetShorelineChanges<-function(ADM,ISO,ext,RCP="RCPC45"){
   Shore<-read.csv(paste0(dir,"/Data/Hazard/ENVIRONMENTAL/CoastalMorphodynamics/globalErosionProjections/globalErosionProjections_Long_Term_Change_RCP45_2050.csv"))
   #Each file contains 9 columns: lat, lon and values for the following percentiles: 1     5    17    50    83    95    99 
   colnames(Shore)<-c("lat", "lon", "p1", "p5","p17","p50","p83","p95","p99")
-  Shore_sf<-Shore%>%
+  shore_sf<-Shore%>%
     st_as_sf(coords=c("lon","lat"), crs=4326) 
   
   if(ISO!= "FJI"){
     ADM_buf<-st_buffer(ADM,dist= 10000)  #AS an estimate, create outer buffer to polygon  to collect sufficient points.
     
     # find points within polygons
-    shore_in_adm <- st_filter(Shore_sf, ADM_buf) %>%
+    shore_in_adm <- st_filter(shore_sf, ADM_buf) %>%
       st_drop_geometry()%>%
        dplyr::summarize(p50 = mean(p50, na.rm=TRUE))
-    
-    ADM$x<-shore_in_adm$p50
+    x<-shore_in_adm$p50
+    ADM$x<-x
   } else{
     ADM$x<-NA
   }
@@ -262,19 +266,14 @@ GetSeaLevelRise<-function(ADM,RP,ISO){
                st_drop_geometry() %>%
                dplyr::summarize(RPSmean = mean(RPS, na.rm=TRUE))%>%
                mutate_all(~ifelse(is.nan(.), NA, .))  #NaN to Na) 
-
-    ADM$x<-rps_in_adm$RPSmean
+    x<-rps_in_adm$RPSmean
+    ADM$x<-x
     } else{
     ADM$x<-NA
   }
   names(ADM)[names(ADM) == "x"] <- paste0("SLR_rp",RP,"y")
   return(ADM)
 }
-
-st_filter(Shore_sf, ADM_buf) %>%
-  st_drop_geometry()%>%
-  dplyr::summarize(p50 = mean(p50, na.rm=TRUE))
-
 
 # Soil Erosion
 #GLOSEM 25km resolution
@@ -286,13 +285,12 @@ GetSoilErosion <-function(ADM,ISO,ext){
   fil<-list.files(path =paste0(dir,"/Data/Hazard/ENVIRONMENTAL/"),
                      pattern = "RUSLE_SoilLoss_v1.1_yr2012_25km.tif", recursive = TRUE,full.names = TRUE)
   
-  x<-terra::rast(fil) %>%
+  ADM$SErode2012<-terra::rast(fil) %>%
     crop(ext)%>%
     terra::extract(ADM,method='bilinear',na.rm=T,fun=mean,ID=FALSE)%>%
     unlist() %>%
     ifelse(is.nan(.) ==TRUE,NA,.)  #NaN to Na
-  ADM$x<-x
-  names(ADM)[names(ADM) == "x"] <- paste0("SErode2012")
+ 
   return(ADM)
 }
 
@@ -330,13 +328,11 @@ GetWetlandLoss<-function(ISO,ADM,ext,year=2020){
   
   wLoss_ras<-raster(paste0(dir,"/Data/Hazard/ENVIRONMENTAL/WetlandLoss/grid_ncdf/ensemblemean/wetland_loss_1700-2020_ensemblemean_v10.nc"),varname=varn)
   
-  x<-wLoss_ras%>%
+  ADM$WtLss_to2020<-wLoss_ras%>%
     crop(ext)%>%
     terra::extract(ADM,method='bilinear',na.rm=T,fun=mean,ID=FALSE)%>%
     unlist() %>%
     ifelse(is.nan(.) ==TRUE,NA,.)  #NaN to Na
-  ADM$x<-x
-  names(ADM)[names(ADM) == "x"] <- paste0("WtndLss2010_2020_km2")
   return(ADM)
 }
 
@@ -347,16 +343,17 @@ GetWetlandLoss<-function(ISO,ADM,ext,year=2020){
 #and sub-country administrative units (GADM level 0 and level 1 administrative units).
 #The dataset is in tabular format (csv) and is derived from the MCD64A1 burned area product.
 GetBurnedAreas<-function(ISO,ADM,ext){
-  fil<-read.csv(paste0(dir,"/Data/Hazard/ENVIRONMENTAL/Wildfire/MCD64A1_burned_area_full_dataset_2002-2019.csv"),header=TRUE)%>%
-    filter(GID_0 == ISO)%>%
-    filter(Year ==max(fil$Year))
   
+  fil<-read.csv(paste0(dir,"/Data/Hazard/ENVIRONMENTAL/Wildfire/MCD64A1_burned_area_full_dataset_2002-2019.csv"),header=TRUE)
   Yr<-max(fil$Year)
+  fil%<>% filter(GID_0 == ISO)%>%
+    filter(Year ==max(fil$Year))
   #select only those in same ADM:
   burnedADM<-fil%>%
     filter(Region == ADM$ADM2NM)%>%
     group_by(GID_0,GID_1,Country,Region)%>%
-    summarise(across(-Month, mean, na.rm = TRUE))
+    summarise(across(-Month, mean, na.rm = TRUE))%>%
+    ungroup()
   
   colnames(burnedADM)<-paste0("BurnedAreaHa_",colnames(burnedADM),"_",Yr)
   
@@ -379,8 +376,9 @@ GetBurnedAreas<-function(ISO,ADM,ext){
 #extract data via opendap links
 
 GetMOPITT<-function(ISO,ADM,ext, MostRecentFile=T){ #add part to specify a date later!
+  ver<-"L3V95.9.3.he5"
   lnk<-"https://opendap.larc.nasa.gov/opendap/MOPITT/MOP03JM.009/"
-  if(mostRecentFile==T){
+  if(MostRecentFile==T){
     maxYMD <-lnk%>%
     getURL(.,verbose=TRUE,ftp.use.epsv=TRUE, dirlistonly = TRUE) %>%
     getHTMLLinks(.,xpQuery = "//a/@href[contains(., '.01')]") %>%
@@ -388,18 +386,19 @@ GetMOPITT<-function(ISO,ADM,ext, MostRecentFile=T){ #add part to specify a date 
     max()%>%
     format(., "%Y.%m.%d")
   maxYM<-maxYMD%>%
-    sub("\\.", "", .)%>%
+    gsub("\\.", "", .)%>%
     substr(.,1,6)
   lnkDL<-paste0(lnk,maxYMD,"/MOP03JM-",maxYM,"-",ver)
   }
-  # create a temporary directory
-  td = tempdir()
-  # create the placeholder file
-  tf = tempfile(tmpdir=td, fileext="he5")
-  # download into the placeholder file
-  download.file(lnkDL, tf)
+  td = paste0("/home/coleen/Documents/GitHub/RiXie/Data/Hazard/CHEMICAL/Carbon_monoxide_mopitt/MOP03JM-",gsub("\\.", "", maxYMD),"-",ver)
+  
+  #check file exists:
+  if(file.exists(td) == FALSE){
+    # download into the placeholder file
+    download.file(lnkDL, td)
+  }
   # Open Data field as raster - field to get is known:
-  r <- raster(tf,
+  r <- raster(td,
               var="HDFEOS/GRIDS/MOP03/Data Fields/RetrievedCOTotalColumnDay",ncdf=TRUE)%>%
     flip(., "x")%>% #some rotation since orig. file is flipped. Mayb because of the order of variables in the netcdf dimension
     flip(.,"y")%>%
