@@ -196,9 +196,7 @@ GetCoralBleaching<-function(ADM,ISO,ext){
       st_drop_geometry()%>%
       dplyr::summarize(Percent_Bleached = mean(Percent_Bleached, na.rm=TRUE))%>%
       mutate_all(function(x) ifelse(is.nan(x), NA, x))
-    x<-shore_in_adm$Percent_Bleached
-    
-    ADM$x<-x
+    ADM$x<- shore_in_adm$Percent_Bleached
     } else{
       ADM$x<-NA
       }
@@ -325,14 +323,16 @@ GetWetlandLoss<-function(ISO,ADM,ext,year=2020){
   wLoss<-nc_open(paste0(dir,"/Data/Hazard/ENVIRONMENTAL/WetlandLoss/grid_ncdf/ensemblemean/wetland_loss_1700-2020_ensemblemean_v10.nc"))
   #varn<-names(wLoss$var) - if need to see all var names
   varn<-"wetland_loss"
-  
   wLoss_ras<-raster(paste0(dir,"/Data/Hazard/ENVIRONMENTAL/WetlandLoss/grid_ncdf/ensemblemean/wetland_loss_1700-2020_ensemblemean_v10.nc"),varname=varn)
   
-  ADM$WtLss_to2020<-wLoss_ras%>%
-    crop(ext)%>%
+  x<-wLoss_ras%>%
+    terra::crop(ext)%>%
     terra::extract(ADM,method='bilinear',na.rm=T,fun=mean,ID=FALSE)%>%
     unlist() %>%
-    ifelse(is.nan(.) ==TRUE,NA,.)  #NaN to Na
+    ifelse(is.null(.) ==TRUE,NA,.)  #NaN to Na
+  
+  ADM$WtLss_to2020<-x
+  
   return(ADM)
 }
 
@@ -342,22 +342,48 @@ GetWetlandLoss<-function(ISO,ADM,ext,year=2020){
 #Monthly burned area [ha] by landcover class for years 2002-2019 for all countries 
 #and sub-country administrative units (GADM level 0 and level 1 administrative units).
 #The dataset is in tabular format (csv) and is derived from the MCD64A1 burned area product.
-GetBurnedAreas<-function(ISO,ADM,ext){
+
+#Better to use the shapefiles of burned area perimeter!
+GetBurnedAreas<-function(ISO,ADM){
+  # 
+  # fil<-read.csv(paste0(dir,"/Data/Hazard/ENVIRONMENTAL/Wildfire/MCD64A1_burned_area_full_dataset_2002-2019.csv"),header=TRUE)
+  # Yr<-max(fil$Year)
+  # fil%<>% filter(GID_0 == ISO)%>%
+  #   filter(Year ==max(fil$Year))
+  # #select only those in same ADM:
+  # burnedADM<-fil%>%
+  #   filter(Region == ADM$ADM2NM)%>%
+  #   group_by(GID_0,GID_1,Country,Region)%>%
+  #   summarise(across(-Month, mean, na.rm = TRUE))%>%
+  #   ungroup()
   
-  fil<-read.csv(paste0(dir,"/Data/Hazard/ENVIRONMENTAL/Wildfire/MCD64A1_burned_area_full_dataset_2002-2019.csv"),header=TRUE)
-  Yr<-max(fil$Year)
-  fil%<>% filter(GID_0 == ISO)%>%
-    filter(Year ==max(fil$Year))
-  #select only those in same ADM:
-  burnedADM<-fil%>%
-    filter(Region == ADM$ADM2NM)%>%
-    group_by(GID_0,GID_1,Country,Region)%>%
-    summarise(across(-Month, mean, na.rm = TRUE))%>%
-    ungroup()
+  fil<-list.files(paste0(dir,"/Data/Hazard/ENVIRONMENTAL/Wildfire/Full_GlobFireV2_Jan_2021"),pattern = ".shp",full.names = TRUE)
   
-  colnames(burnedADM)<-paste0("BurnedAreaHa_",colnames(burnedADM),"_",Yr)
+  MostRecentDateIndex<-gsub(".*L_","",fil)%>%
+    gsub("*.shp","",.)%>%
+    as.Date(., format("%d_%m_%Y"))%>%
+    {which(. == max(.))}
+
+  sf_use_s2(FALSE) #this avoids errors whem clipping
+  BurnedMostRecent<-fil[MostRecentDateIndex]%>%
+    st_read() %>%
+    filter(Type == "FinalArea")
   
-  ADM<-cbind(ADM,burnedADM[,-c(1:5)])
+  BurnedMostRecent%<>%st_intersection(.,ADM$geom)%>%
+    st_area()%>%
+    sum()*0.0001#Calculate total area 
+    
+  attributes(BurnedMostRecent) <-NULL
+  
+  ADM$Brn<-BurnedMostRecent
+  
+  #rname with date
+  Date<-gsub(".*L_","",fil)%>%
+    gsub("*.shp","",.)%>%
+    as.Date(., format("%d_%m_%Y"))%>%
+    max()
+  
+  colnames(ADM)[colnames(ADM) == "Brn"] =paste0("BrnHa_",Date) 
   
   return(ADM)
 }
@@ -400,7 +426,7 @@ GetMOPITT<-function(ISO,ADM,ext, MostRecentFile=T){ #add part to specify a date 
   # Open Data field as raster - field to get is known:
   r <- raster(td,
               var="HDFEOS/GRIDS/MOP03/Data Fields/RetrievedCOTotalColumnDay",ncdf=TRUE)%>%
-    flip(., "x")%>% #some rotation since orig. file is flipped. Mayb because of the order of variables in the netcdf dimension
+    flip(., "x")%>% #some rotation since orig. file is flipped. Maybe because of the order of variables in the netcdf dimension
     flip(.,"y")%>%
     t(.)
   
@@ -410,6 +436,7 @@ GetMOPITT<-function(ISO,ADM,ext, MostRecentFile=T){ #add part to specify a date 
     terra::extract(ADM,method='bilinear',na.rm=T,fun=mean,ID=FALSE)%>%
     unlist() %>%
     ifelse(is.nan(.) ==TRUE,NA,.)  #NaN to Na
+  x<-ifelse(is.null(x)==TRUE,NA,x)
   ADM$x<-x
   names(ADM)[names(ADM) == "x"] <- paste0("MOPITT_CO_",maxYM)
   return(ADM)
